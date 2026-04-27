@@ -1,0 +1,140 @@
+@import 'tailwindcss';
+@import 'fumadocs-ui/css/neutral.css';
+@import 'fumadocs-ui/css/preset.css';
+
+/* Custom font size adjustments */
+.prose {
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.prose h1 {
+  font-size: 1.8em;
+  line-height: 1.3;
+}
+
+.prose h2 {
+  font-size: 1.5em;
+  line-height: 1.4;
+}
+
+.prose h3 {
+  font-size: 1.3em;
+  line-height: 1.4;
+}
+
+.prose h4 {
+  font-size: 1.2em;
+  line-height: 1.4;
+}
+
+.prose h5, .prose h6 {
+  font-size: 1.1em;
+  line-height: 1.4;
+}
+
+.prose p {
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.prose li {
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.prose code {
+  font-family: var(--font-geist-mono);
+  font-size: 13px;
+}
+
+.prose pre {
+  font-family: var(--font-geist-mono);
+  font-size: 13px;
+}
+
+/* Apply Geist Mono to all code-related elements */
+code, pre, kbd, samp, tt {
+  font-family: var(--font-geist-mono) !important;
+}
+
+/* Fumadocs code blocks */
+.fumadocs-code {
+  font-family: var(--font-geist-mono) !important;
+}
+
+/* Shiki code blocks */
+.shiki {
+  font-family: var(--font-geist-mono) !important;
+}
+
+/* Inline code */
+:not(pre) > code {
+  font-family: var(--font-geist-mono) !important;
+}
+
+/* Reduce font size for specific Fumadocs elements */
+.fumadocs-content {
+  font-size: 14px;
+}
+
+.fumadocs-content p {
+  font-size: 14px;
+}
+
+.fumadocs-content li {
+  font-size: 14px;
+}
+
+/* Sidebar font size */
+.fumadocs-sidebar {
+  font-size: 13px;
+}
+
+/* Navigation font size */
+.fumadocs-nav {
+  font-size: 13px;
+}
+
+/* Table of Contents (TOC) font size reduction */
+.relative.min-h-0.text-sm {
+  font-size: 12px;
+}
+
+.prose.py-1\.5.text-sm {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.prose.py-1\.5.text-sm a {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.flex.flex-col.border-s {
+  font-size: 12px;
+}
+
+.ps-3 {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.ps-6 {
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.ps-8 {
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.prose.py-1\.5.text-sm[data-active="true"] {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.relative.min-h-0.text-sm {
+  font-size: 12px;
+}

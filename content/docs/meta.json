@@ -1,0 +1,10 @@
+{
+  "title": "Documentation",
+  "description": "StackPatrol Documentation",
+  "pages": [
+    "introduction",
+    "cli",
+    "guide",
+    "reference"
+  ]
+}

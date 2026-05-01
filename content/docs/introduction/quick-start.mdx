@@ -1,0 +1,146 @@
+---
+title: Quick Start
+description: Install the CLI, link a Telegram chat, and get your first alert in under 60 seconds.
+icon: Rocket
+---
+
+# Quick Start
+
+Get your first server reporting to Telegram in about a minute.
+
+---
+
+## 1. Install the CLI
+
+A single static binary, no runtime dependencies.
+
+### macOS / Linux (curl)
+
+```bash
+curl -fsSL https://stackpatrol.dev/install.sh | sh
+```
+
+### Cargo
+
+```bash
+cargo install stackpatrol
+```
+
+### From source
+
+```bash
+git clone https://github.com/stackpatrol/stackpatrol
+cd stackpatrol
+cargo build --release
+./target/release/stackpatrol --version
+```
+
+> The `cargo install` and `curl | sh` paths land with the v1 release. Until then, build from source or grab a binary from GitHub Releases.
+
+---
+
+## 2. Link your Telegram chat
+
+Open [@StackPatrolBot](https://t.me/StackPatrolBot) on Telegram and send `/start`. The bot replies with an inline keyboard:
+
+```
+[➕ Add server]   [📋 My servers]   [⚙️ Help]
+```
+
+Tap **➕ Add server**. Send a name when prompted (something like `web-1` or `homelab-nas`). The bot replies with a token and a TOML snippet:
+
+```toml
+# Paste this into ~/.config/stackpatrol/config.toml
+server_name = "web-1"
+api_endpoint = "https://api.stackpatrol.dev"
+token = "sp_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+```
+
+If you're on the **Free** tier you can register **1** server. Pro lifts this to 10, Team to 50.
+
+---
+
+## 3. Configure the CLI
+
+Either paste the snippet into the config file directly, or run:
+
+```bash
+stackpatrol init
+```
+
+`init` prompts for the token, validates the format, writes `~/.config/stackpatrol/config.toml`, and confirms the API endpoint is reachable.
+
+---
+
+## 4. Smoke-test alerts
+
+Trigger a synthetic alert + recovery to confirm everything is wired up:
+
+```bash
+stackpatrol alert-test
+```
+
+You should see:
+
+```
+🔴 web-1 — alert-test is down
+✅ web-1 — alert-test is back online   (3 seconds later)
+```
+
+If the alert lands on Telegram, you're done.
+
+---
+
+## 5. Run the daemon
+
+The daemon is the long-lived process that runs probes and reports events. Start it interactively first:
+
+```bash
+stackpatrol daemon
+```
+
+You'll see logs like:
+
+```
+2026-04-27T12:00:00Z INFO  stackpatrol::daemon: tick
+2026-04-27T12:00:00Z INFO  stackpatrol::probe_docker: 4 containers running
+2026-04-27T12:00:00Z INFO  stackpatrol::client: events accepted
+```
+
+When you're confident it works, run it under **systemd** so it survives reboots. The CLI ships with a unit file at `packaging/stackpatrol.service`:
+
+```bash
+sudo cp packaging/stackpatrol.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now stackpatrol
+```
+
+The unit hardens the process with `Restart=on-failure`, `NoNewPrivileges`, `ProtectSystem=full`, and `PrivateTmp=true`.
+
+---
+
+## 6. Confirm the server is healthy
+
+```bash
+stackpatrol status
+```
+
+```
+StackPatrol — web-1
+  endpoint:        https://api.stackpatrol.dev   (reachable)
+  uptime:          7d 3h 12m
+  load:            0.42 / 0.31 / 0.28
+  memory:          43% used
+  disks:           / 28%   /var 17%
+  probes:          docker (4 containers)  systemd (3 units)  ports (2)
+  buffer:          0 events queued
+```
+
+That's it. From here, edit `~/.config/stackpatrol/config.toml` to add probes, or read on:
+
+<Cards>
+  <Card title="CLI Reference" href="/cli" />
+  <Card title="Built-in Probes" href="/guide/monitoring" />
+  <Card title="Telegram Bot Guide" href="/guide/alerts/telegram" />
+  <Card title="Plans" href="/guide/plans" />
+</Cards>

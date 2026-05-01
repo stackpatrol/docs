@@ -1,0 +1,56 @@
+---
+title: CLI Reference
+description: The stackpatrol binary, command by command.
+icon: Terminal
+---
+
+# CLI Reference
+
+The `stackpatrol` binary is a clap-based Rust CLI. Every command takes the same shared flags:
+
+| Flag | Default | Description |
+|:-----|:--------|:------------|
+| `--config <path>` | `~/.config/stackpatrol/config.toml` | Override the config file location |
+| `-v`, `--verbose` | off | More log output (repeatable: `-vv` for trace) |
+| `--help` | — | Print help for any command |
+| `--version` | — | Print version + build info |
+
+Run `stackpatrol --help` to see the live list at any time.
+
+---
+
+## Commands at a glance
+
+<Cards>
+  <Card title="stackpatrol init" href="/cli/init" />
+  <Card title="stackpatrol daemon" href="/cli/daemon" />
+  <Card title="stackpatrol status" href="/cli/status" />
+  <Card title="stackpatrol alert-test" href="/cli/alert-test" />
+  <Card title="config.toml reference" href="/cli/config" />
+</Cards>
+
+| Command | What it does |
+|:--------|:-------------|
+| `init` | Interactive setup — prompt for token, validate, write config |
+| `daemon` | Long-running process — runs probes, reports events, handles SIGTERM cleanly |
+| `status` | One-shot snapshot — shows config, probes, last-seen, buffer depth, API reachability |
+| `alert-test` | Fires a synthetic `service_down` then `service_up` 3s later — confirms alerts work end-to-end |
+| `watch` | (M5) Live log stream from the control plane |
+| `restart <service>` | (M5) Trigger a remote restart via the bot's inline keyboard |
+| `tail <service>` | (M5) Stream a service's logs |
+
+`watch` / `restart` / `tail` arrive in **M5** — they require control-plane SSE and Telegram inline-command wiring that's still in progress.
+
+---
+
+## Exit codes
+
+| Code | Meaning |
+|:-----|:--------|
+| `0` | Success |
+| `1` | Generic error (config invalid, unreachable API, missing token) |
+| `2` | Argument parse error (clap default) |
+| `3` | Permission denied (e.g. cannot read systemd state without privileges) |
+| `64`–`78` | Reserved (sysexits.h) |
+
+The daemon uses `0` for clean shutdown via SIGTERM/SIGINT, and `1` if it exits because of a fatal error.

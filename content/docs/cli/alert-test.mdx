@@ -1,0 +1,74 @@
+---
+title: stackpatrol alert-test
+description: Fire a synthetic down + recovery alert — confirm Telegram delivery end-to-end.
+---
+
+# `stackpatrol alert-test`
+
+Sends a fake `service_down` followed by a `service_up` 3 seconds later. If both messages land in your Telegram chat, every layer of the stack is wired up correctly.
+
+```bash
+stackpatrol alert-test
+```
+
+---
+
+## What it does
+
+1. POSTs `service_down("alert-test")` to `/api/v1/events`
+2. Waits 3 seconds
+3. POSTs `service_up("alert-test")` to the same endpoint
+4. Exits `0` on success
+
+The control plane treats these like any other event:
+
+- The first one creates an alert + dispatches a `🔴` Telegram message
+- The second one resolves the alert + dispatches a `✅` recovery message
+
+Coalescing applies. If you run `alert-test` 10 times in a minute, you'll see one alert (per the 60-second coalescing window), not ten.
+
+---
+
+## Example
+
+```bash
+$ stackpatrol alert-test
+StackPatrol — sending test alert as web-1
+  → POST /api/v1/events  service_down("alert-test")  ✓ accepted (32ms)
+  ⌛ waiting 3s for recovery
+  → POST /api/v1/events  service_up("alert-test")    ✓ accepted (29ms)
+
+  Check Telegram: you should have received a 🔴 alert + ✅ recovery.
+  If not, run with -v to see the raw response, or check `stackpatrol status`.
+```
+
+On Telegram:
+
+```
+🔴 web-1 — alert-test is down
+   service_down · just now
+
+✅ web-1 — alert-test is back online
+   service_up · 3s later
+```
+
+---
+
+## Flags
+
+| Flag | Description |
+|:-----|:------------|
+| `--no-recovery` | Send the down event only — skip the recovery (use to test silences / coalescing) |
+| `--delay <secs>` | Override the 3-second gap before the recovery |
+| `--message <text>` | Custom event subject (default: `"alert-test"`) |
+
+---
+
+## When to use it
+
+- Right after `init`, before you trust the daemon with production
+- After rotating a server token (confirm the new one works)
+- When debugging "did Telegram receive this?" — bypasses every probe and goes straight to the alert path
+- In a CI smoke test for your own deployment automation
+
+If `alert-test` works but your real probes don't fire alerts, the issue is on the **probe side**, not delivery — see [Built-in Probes](/guide/monitoring) for tuning.

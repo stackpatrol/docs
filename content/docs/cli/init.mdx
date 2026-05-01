@@ -1,0 +1,91 @@
+---
+title: stackpatrol init
+description: Interactive first-run setup — prompts for a token, validates, writes the config file.
+---
+
+# `stackpatrol init`
+
+Walks you through first-run setup. Use it once per server.
+
+```bash
+stackpatrol init
+```
+
+---
+
+## What it does
+
+1. Asks for a server token (the `sp_live_…` value from the Telegram bot)
+2. Validates the token format client-side (prefix + length)
+3. Confirms the API endpoint is reachable
+4. Writes `~/.config/stackpatrol/config.toml` with sensible defaults
+5. Prints next steps (`alert-test`, `daemon`)
+
+The token isn't validated against the control plane during `init` — that happens on the first event POST. If you typo the token, `alert-test` will fail with a 401 and you can re-run `init`.
+
+---
+
+## Example
+
+```bash
+$ stackpatrol init
+StackPatrol setup
+  Paste your server token (from @StackPatrolBot): sp_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  Server name: web-1
+  API endpoint: https://api.stackpatrol.dev (default)
+
+  ✓ Token format looks valid
+  ✓ Wrote ~/.config/stackpatrol/config.toml
+
+Next:
+  stackpatrol alert-test     send a test alert to confirm Telegram delivery
+  stackpatrol daemon         start the long-running monitor
+```
+
+---
+
+## Flags
+
+| Flag | Description |
+|:-----|:------------|
+| `--token <token>` | Skip the prompt and pass the token inline (handy for shell scripts / Ansible) |
+| `--server-name <name>` | Skip the prompt and pass the server name inline |
+| `--endpoint <url>` | Override the default API endpoint (`https://api.stackpatrol.dev`) |
+| `--force` | Overwrite an existing config file without prompting |
+
+---
+
+## Non-interactive setup
+
+For Ansible / cloud-init / Dockerfiles:
+
+```bash
+stackpatrol init \
+  --token "$STACKPATROL_TOKEN" \
+  --server-name "$(hostname)" \
+  --force
+```
+
+You can also skip `init` entirely and write the config file directly — see [config reference](./config).
+
+---
+
+## Where the config goes
+
+| OS | Path |
+|:---|:-----|
+| Linux | `~/.config/stackpatrol/config.toml` |
+| macOS | `~/Library/Application Support/stackpatrol/config.toml` |
+| Override | `--config <path>` on any command |
+
+`init` respects `XDG_CONFIG_HOME` on Linux.
+
+---
+
+## Troubleshooting
+
+**"Token format looks invalid"** — Tokens start with `sp_live_` and are ~40 characters. Make sure you copied the whole string (Telegram occasionally truncates on long messages — tap-and-hold the token to copy, don't double-tap).
+
+**"API endpoint unreachable"** — Confirm the server has outbound HTTPS to `api.stackpatrol.dev`. The CLI uses rustls, no system OpenSSL needed.
+
+**"Config already exists"** — Use `--force` or delete the file and re-run.

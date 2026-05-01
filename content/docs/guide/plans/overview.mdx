@@ -1,0 +1,76 @@
+---
+title: Plans Overview
+description: Free, Pro, and Team — all priced on one axis (server count).
+icon: CreditCard
+---
+
+# Plans Overview
+
+StackPatrol's pricing is intentionally simple: **one axis, server count**. No per-message charges, no per-GB ingestion fees, no surprise bills during incidents.
+
+---
+
+## Plan comparison
+
+| Feature | Free | Pro | Team |
+|:--------|:-----|:----|:-----|
+| **Monthly price** | $0 | $5/mo | $20/mo |
+| **Servers** | 1 | 10 | 50 |
+| **Alert history** | 24h | 30 days | 90 days |
+| **Telegram alerts** | ✅ | ✅ | ✅ |
+| **Email / Discord / Slack alerts** | — | ✅ (Phase 2) | ✅ (Phase 2) |
+| **Hosted dashboard** | — | ✅ (Phase 2) | ✅ (Phase 2) |
+| **Public status page** | — | ✅ (Phase 2) | ✅ (Phase 2) |
+| **Custom check scripts** | — | ✅ (Phase 2) | ✅ (Phase 2) |
+| **Multi-user workspace** | — | — | ✅ (Phase 3) |
+| **On-call rotation** | — | — | ✅ (Phase 3) |
+| **Per-seat add-ons** | — | — | $5/seat |
+
+Each tier inherits everything from the tier below.
+
+---
+
+## What every plan includes
+
+Even on Free:
+
+- **Single static binary** — Rust CLI, `<10 MiB`, runs on Linux amd64 + arm64 (Pi-friendly)
+- **All probes** — Docker Compose, systemd, TCP ports, disk / memory / load
+- **Telegram alerts** via [@StackPatrolBot](https://t.me/StackPatrolBot)
+- **Recovery alerts** — every 🔴 is paired with a ✅ when state restores
+- **Coalescing** — flapping services don't spam your chat
+- **Heartbeat-based offline detection** — if the daemon stops, you get a `host_unreachable` alert in 3 minutes
+- **Open-source CLI** ([github.com/stackpatrol/stackpatrol](https://github.com/stackpatrol/stackpatrol))
+
+The CLI itself is identical across plans. Tier limits are enforced **server-side** in the control plane, not in the binary.
+
+---
+
+## Choosing a plan
+
+- **Free** — solo dev, single VPS, just want to know when the box dies. Generous enough for the indie / homelab "I run one box for my side project" use case.
+- **Pro $5/mo** — handful of side projects, a small homelab fleet, or a solo SaaS founder running 2–10 boxes. Adds 30-day history and (Phase 2) email / Discord / Slack channels and a hosted dashboard.
+- **Team $20/mo** — small ops team, 10–50 servers, multiple humans need to see and respond to alerts. Adds workspaces, on-call rotation, group-chat alerts.
+
+Above 50 servers, talk to us about Phase 4 enterprise terms (SSO, audit logs, RBAC, SLA).
+
+---
+
+## What's NOT in the matrix
+
+We deliberately don't price on:
+
+- **Number of alerts** — your monitoring shouldn't cost more during a bad week.
+- **Number of probes** — adding more probes per server is fine.
+- **Telegram messages sent** — coalescing already keeps this sane; pricing per message would just create perverse incentives.
+- **Number of users on Free / Pro** — Pro is a single-operator tier; Team adds multi-user.
+
+---
+
+## Detail pages
+
+<Cards>
+  <Card title="Free tier" href="/guide/plans/free" />
+  <Card title="Pro ($5/mo)" href="/guide/plans/pro" />
+  <Card title="Team ($20/mo)" href="/guide/plans/team" />
+</Cards>

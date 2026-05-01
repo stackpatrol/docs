@@ -1,0 +1,126 @@
+---
+title: How It Works
+description: The data flow from a probe firing on your server to a Telegram message landing in your chat.
+icon: Network
+---
+
+# How It Works
+
+End-to-end, here's what happens between a service crashing on your server and a `🔴` icon arriving in your Telegram chat.
+
+---
+
+## The components
+
+<Mermaid chart={`flowchart LR
+  subgraph server["Your server"]
+    daemon["stackpatrol daemon<br/>probes: docker · systemd · ports · resources<br/>buffer.jsonl"]
+  end
+
+  subgraph control["StackPatrol control plane"]
+    api["POST /api/v1/events"]
+    engine["alert engine<br/>+ coalescing"]
+    queue["delivery queue"]
+    worker["Telegram delivery"]
+    api --> engine --> queue --> worker
+  end
+
+  telegram(["Telegram client"])
+
+  daemon -->|"HTTPS event<br/>Bearer sp_live_…"| api
+  worker --> telegram
+`} />
+
+---
+
+## Step-by-step
+
+### 1. The daemon ticks
+
+`stackpatrol daemon` runs as a long-lived process, usually under **systemd**. On every tick (default: 30s, minimum: 5s) it:
+
+- Walks each configured probe (`probe_docker`, `probe_systemd`, `probe_ports`, `probe_resources`)
+- Compares current state to the previous tick
+- Builds zero or more `Event` values (`service_down`, `service_up`, `port_unreachable`, `disk_warning`, `heartbeat`, …)
+- Wraps them in an `EventEnvelope` with the server token and a timestamp
+
+Each tick also emits a `heartbeat` event regardless of probe state — that's how the control plane knows the daemon is alive.
+
+### 2. The CLI POSTs the events
+
+The envelope is sent over HTTPS to:
+
+```
+POST https://api.stackpatrol.dev/api/v1/events
+Authorization: Bearer sp_live_…
+Content-Type: application/json
+```
+
+If the request succeeds, the daemon moves on. If it fails (network blip, control plane redeploying), the events are appended to a durable JSONL buffer at:
+
+```
+~/.local/share/stackpatrol/buffer.jsonl
+```
+
+Buffered events drain on the **next tick** with bounded retry + exponential backoff. The buffer is the reason a 5-minute API outage doesn't lose any of your alerts.
+
+### 3. The control plane validates the token
+
+The token format is `sp_live_<prefix>_<secret>`. The API:
+
+1. Looks up the row by **prefix only** (an indexed lookup)
+2. Verifies the secret half against the stored hash
+3. Updates `last_seen_at` and sets status back to `online` if it had been `offline`
+
+If validation fails, the request gets a 401 and nothing further happens.
+
+### 4. The alert engine decides what to do
+
+Once the event is persisted, the alert engine runs:
+
+- Maps the event to a `kind` and a human-readable `summary`
+- Looks for an existing alert with the same `(server_id, kind)` within the last **60 seconds** — if found, the new event is coalesced into it (no duplicate alert)
+- Otherwise creates a new alert and enqueues a delivery job
+
+The 60-second coalescing window is the reason a flapping container doesn't spam you with 200 messages.
+
+### 5. The Telegram worker delivers
+
+A worker consumes the delivery queue. For each job:
+
+1. Resolves the owning user's Telegram chat from the linked account
+2. Sends the message via the Bot API
+3. Retries with exponential backoff on transient failures
+
+The worker is rate-limit-aware — Telegram allows 30 msgs/sec globally per bot and 1 msg/sec per chat. Coalescing keeps us well below that ceiling at small scale.
+
+### 6. Recovery alerts
+
+When a service comes back up, the daemon emits `service_up` on the next tick. The control plane:
+
+- Updates the alert row to `resolved`
+- Sends a synthetic `host_recovered` or `service_up` message — `✅ <server> is back online`
+
+You always know whether a problem self-resolved without having to check.
+
+### 7. Offline detection (control-plane-side)
+
+What if the daemon itself dies? Or the host is unreachable?
+
+Every 60 seconds, an offline detector sweeps for servers whose `last_seen_at` is older than the **3-minute stale window**, marks them `offline`, and synthesizes a `host_unreachable` event. That goes through the same alert engine + Telegram worker path.
+
+3 minutes is intentional — it's long enough to avoid false positives during a brief network blip, short enough that you'll know about a real outage in time to act.
+
+---
+
+## What you actually see in Telegram
+
+```
+🔴 web-1 — nginx is down
+   service_down · just now
+
+✅ web-1 — nginx is back online
+   service_up · 3m later
+```
+
+Inline command buttons (`/silence 30m`, `/restart nginx`, `/ack`) land in **Phase 1 stretch** / **Phase 2**.

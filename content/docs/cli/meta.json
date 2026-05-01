@@ -1,0 +1,14 @@
+{
+  "title": "CLI",
+  "description": "Command-line reference for the stackpatrol binary",
+  "root": true,
+  "icon": "Terminal",
+  "pages": [
+    "index",
+    "init",
+    "daemon",
+    "status",
+    "alert-test",
+    "config"
+  ]
+}

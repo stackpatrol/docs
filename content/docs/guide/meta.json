@@ -1,0 +1,13 @@
+{
+  "title": "Guide",
+  "description": "Operational guides — probes, alerts, and plans",
+  "root": true,
+  "icon": "BookOpen",
+  "pages": [
+    "index",
+    "monitoring",
+    "alerts",
+    "---Plans---",
+    "plans"
+  ]
+}

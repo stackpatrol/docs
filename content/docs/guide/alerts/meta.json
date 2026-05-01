@@ -1,0 +1,11 @@
+{
+  "title": "Alerts",
+  "description": "How alerts get from a probe to your phone",
+  "icon": "Bell",
+  "pages": [
+    "telegram",
+    "recovery",
+    "coalescing",
+    "silences"
+  ]
+}

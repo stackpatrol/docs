@@ -1,0 +1,78 @@
+---
+title: What is StackPatrol?
+description: A single Rust binary plus a Telegram bot — server monitoring for people who don't want to run Prometheus.
+icon: Server
+---
+
+# What is StackPatrol?
+
+StackPatrol is two things working together:
+
+1. A **Rust CLI binary** that runs on each of your servers and watches the things that go wrong.
+2. A **managed control plane + Telegram bot** ([@StackPatrolBot](https://t.me/StackPatrolBot)) that routes alerts to you.
+
+That's the whole product. There is no Grafana to wire up, no Prometheus scrape config, no Alertmanager YAML, no separate notification channel to configure. You install one binary, paste one token, and start getting Telegram messages when things break.
+
+---
+
+## What it monitors
+
+The CLI ships with built-in probes for the things that actually break on a small VPS fleet:
+
+- **Docker Compose** — container state across one or more compose projects
+- **systemd units** — service active / failed / inactive
+- **TCP ports** — reachability of any host:port (your HTTP backend, Postgres, internal services)
+- **Disk usage** — per-mount used % thresholds
+- **Memory usage** — total used %
+- **Load average** — 1m / 5m / 15m thresholds
+- **Heartbeat** — if the agent stops reporting, the control plane raises a `host_unreachable` alert after a 3-minute stale window
+
+If you need something custom, you'll be able to wire arbitrary check scripts in Phase 2 (Pro tier).
+
+---
+
+## What it does NOT do
+
+We're deliberately small. StackPatrol is **not**:
+
+- A Datadog replacement. No APM, no distributed tracing, no log aggregation (yet).
+- A Kubernetes operator. K8s users have Prometheus, Grafana, and Alertmanager already.
+- A synthetic monitoring service. We run inside your servers, not outside them.
+- A self-hostable platform. The control plane is operated by us. The CLI is open source so you can audit what runs on your boxes.
+
+If those exclusions sound wrong for you, StackPatrol probably isn't the right fit.
+
+---
+
+## The architecture in one diagram
+
+<Mermaid chart={`flowchart LR
+  daemon["stackpatrol daemon<br/>(Rust CLI)"]
+  subgraph control["Our control plane"]
+    api["Ingest API"]
+    engine["Alert engine"]
+    worker["Telegram delivery"]
+    api --> engine --> worker
+  end
+  telegram(["Telegram client"])
+  daemon -->|"events / heartbeat<br/>Bearer sp_live_…"| api
+  worker -->|"send"| telegram
+`} />
+
+- The **CLI** authenticates with a per-server token (`sp_live_…`).
+- Events flow over HTTPS to the **ingest API**.
+- The **alert engine** decides severity, coalesces duplicates, and enqueues a delivery job.
+- A **Telegram worker** picks up the job and sends a message to your linked chat.
+- The **bot** is the bidirectional channel: you use it to add servers and receive alerts.
+
+See [How It Works](/how-it-works) for the full data flow.
+
+---
+
+## Open client, closed control plane
+
+The CLI binary is **MIT-licensed** and lives at [github.com/stackpatrol/stackpatrol](https://github.com/stackpatrol/stackpatrol). You should be able to read the source of anything that runs on your servers.
+
+The control plane (API, bot worker, dashboard, billing) is **closed source**. Authentication tokens are issued and validated server-side, so opening the CLI doesn't undermine the business — only our control plane can issue valid tokens.
+
+Same model used by Sentry, PostHog, and Tailscale. If self-hosting the entire stack is a hard requirement for you, we won't be a fit at v1.

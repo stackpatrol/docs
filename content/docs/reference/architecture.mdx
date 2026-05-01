@@ -1,0 +1,82 @@
+---
+title: Architecture
+description: Centralized control plane + per-server token auth, with the CLI as the only thing on your servers.
+icon: Server
+---
+
+# Architecture
+
+A single sentence: **a Rust CLI on each server posts events to a managed control plane, which fans out alerts via a Telegram bot.**
+
+Two things to internalize:
+
+1. **You only run the CLI.** Everything else (API, bot, queue, DB, dashboard) is operated by us.
+2. **The CLI is open source; the control plane is closed.** Same model as Sentry / PostHog / Tailscale.
+
+---
+
+## Components
+
+### CLI binary (`stackpatrol/stackpatrol`, public)
+
+Cargo workspace with two crates:
+
+| Crate | Role |
+|:------|:-----|
+| `crates/cli` | The `stackpatrol` binary — clap-based, tokio runtime, runs probes and POSTs events |
+| `crates/core` | Shared `Event` enum, `EventEnvelope`, `sp_live_…` token format. The server validates the same shape on ingestion. |
+
+Build profile: static `musl`, `lto = "thin"`, `strip = "symbols"`, `panic = "abort"`. Current arm64 release: **~3.6 MiB**. CI enforces a `≤ 10 MiB` size gate.
+
+### Control plane (closed source)
+
+Operated by us as a managed service. From the outside, it exposes:
+
+| Surface | Role |
+|:--------|:-----|
+| `api.stackpatrol.dev` | Event ingestion (`/api/v1/events`), token validation, server provisioning |
+| `stackpatrol.dev` | Marketing site |
+| `app.stackpatrol.dev` | User dashboard *(Phase 2)* |
+| `stackpatrol.dev/docs` | This site |
+| `@StackPatrolBot` | Telegram bot for linking accounts and receiving alerts |
+
+Internal services (alert engine, delivery queue, offline sweeper, persistent storage) are implementation details that may change without notice. The only stable contract is the public API and CLI surface.
+
+---
+
+## The data flow
+
+<Mermaid chart={`flowchart LR
+  cli["CLI"]
+  api["Ingest API<br/>(Bearer auth)"]
+  engine["alert engine<br/>(coalesce, decide kind)"]
+  queue["delivery queue"]
+  worker["Telegram delivery"]
+  phone(["Telegram → your phone"])
+  cli -->|"POST /api/v1/events"| api --> engine --> queue --> worker --> phone
+`} />
+
+Plus a parallel sweeper that runs every 60s, finds servers stale longer than 3 minutes, and synthesizes a `host_unreachable` event into the same path.
+
+See [How It Works](/how-it-works) for the user-flavored version.
+
+---
+
+## Why this shape
+
+A few decisions worth knowing:
+
+- **Centralized control plane.** Self-hosted control plane is *not* on the v1 menu. It would mean three deployment targets (CLI + control plane + bot relay) and self-hosters of monitoring tools tend to be exactly the people we *aren't* building for. Phase 4+ may revisit for enterprise.
+- **Telegram-first at v1.** Email / Discord / Slack land in Phase 2. Telegram is the channel our wedge audience already lives in.
+- **Per-server tokens, not per-account.** Compromise of one server's token only exposes one server's events, not the whole account. Tokens can be rotated/revoked individually (rotation lands in Phase 1 follow-on).
+- **Rate-limit-aware delivery.** Telegram's 30 msg/sec global ceiling per bot requires queueing with retries and backoff. Coalescing keeps small fleets well below that ceiling.
+
+---
+
+## What's *not* in the architecture
+
+- **No Kubernetes operator.** Different audience, mature ecosystem already exists.
+- **No log aggregation.** Phase 4 stretch; not part of v1.
+- **No APM / tracing.** Wrong wedge.
+- **No external probe network.** v1 is host-agent only.
+- **No hosted multi-tenant control plane for self-hosters.** v1 is the managed offering.

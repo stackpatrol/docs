@@ -1,0 +1,111 @@
+---
+title: Telegram bot
+description: Linking your Telegram chat, the inline keyboard, and managing servers from chat.
+icon: Send
+---
+
+# Telegram bot
+
+The bot at [@StackPatrolBot](https://t.me/StackPatrolBot) is your control surface. Every server gets registered here, and every alert lands here.
+
+---
+
+## Linking your chat
+
+Open [@StackPatrolBot](https://t.me/StackPatrolBot) on Telegram and send `/start`.
+
+The bot:
+
+1. Looks up (or creates) a user record for your Telegram ID
+2. Stores `telegram_user_id ↔ chat_id` so future events can find you
+3. Replies with the inline keyboard
+
+If you've never used StackPatrol before, a placeholder email is created for you (`tg-<id>@stackpatrol.local`) so the rest of the system has something to attach billing / settings to. You can replace this with a real email later from the web dashboard (Phase 2).
+
+---
+
+## The inline keyboard
+
+```
+[➕ Add server]   [📋 My servers]   [⚙️ Help]
+```
+
+### ➕ Add server
+
+The bot prompts you for a name (`web-1`, `homelab-nas`, whatever helps you recognize it in alerts) and:
+
+1. Checks your plan limit — Free 1, Pro 10, Team 50. Beyond the limit you get an error and a link to upgrade.
+2. Generates a new `sp_live_…` token (random secret, hashed server-side, prefix stored separately for indexed lookup).
+3. Replies with a copy-paste TOML snippet ready for `~/.config/stackpatrol/config.toml`.
+
+The token is shown **once**. The one-way hashing means even StackPatrol can't recover it later — losing it means rotating to a new one (rotation lands in Phase 1 follow-on).
+
+### 📋 My servers
+
+Shows every server you've registered with:
+
+- Server name
+- Last-seen timestamp
+- Current status (`🟢 online` / `🔴 offline`)
+
+This is the same view you'll get on the web dashboard at `app.stackpatrol.dev` once Phase 2 ships.
+
+### ⚙️ Help
+
+Brief reminder of how the workflow works. Mostly for first-time users; you can ignore it.
+
+---
+
+## What alerts look like
+
+```
+🔴 web-1 — nginx is down
+   service_down · just now
+
+✅ web-1 — nginx is back online
+   service_up · 3m later
+```
+
+The alert message includes:
+
+- Severity icon (`🔴` for down/warn, `✅` for recovery)
+- Server name
+- Probe-specific subject (`nginx`, `/var`, `postgres`, …)
+- Event kind + a one-line summary
+
+If the same problem recurs within 60 seconds, alerts are **coalesced** — see [Coalescing](./coalescing).
+
+---
+
+## Inline reply commands
+
+> Coming in Phase 1 stretch / Phase 2.
+
+The plan is for each alert to ship with reply-keyboard buttons:
+
+- **`/silence 30m`** — suppress further alerts from this server for 30 minutes
+- **`/restart <service>`** — trigger a remote restart through the daemon
+- **`/ack`** — mark the alert as acknowledged so other workspace members see it's handled
+
+These require the control plane to support SSE back to the daemon (in progress). Until then, silences and acks are issued by typing the command directly to the bot.
+
+---
+
+## Privacy
+
+- The bot only reads messages directed at it (it's not a group bot at v1).
+- Your Telegram user ID is stored, your chat ID is stored, and a placeholder email is generated. That's the entire PII surface for the Free tier.
+- Outbound messages from the bot go to *your* chat — never broadcast.
+- Server tokens are stored hashed, not plaintext.
+
+---
+
+## What if the bot is down?
+
+Telegram occasionally rate-limits or shadow-bans bots that get reported. Mitigations:
+
+- **Backup bot token** swappable without redeploy — daemon doesn't care which bot username relays the message.
+- **Multi-channel support** in **Phase 2** — email, Discord, Slack as fallback.
+- The CLI's **on-disk buffer** keeps events durable across delivery outages, so when the bot recovers you don't lose history.
+
+If the entire control plane is unreachable, you'd lose alerts for that window. Our own status page (planned) will live at `status.stackpatrol.dev`.

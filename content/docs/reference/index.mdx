@@ -1,0 +1,25 @@
+---
+title: Reference
+description: Architecture, token format, event schema.
+icon: FileText
+---
+
+# Reference
+
+The implementation-level details.
+
+<Cards>
+  <Card title="Architecture" href="/reference/architecture" />
+  <Card title="Token format" href="/reference/tokens" />
+  <Card title="Event schema" href="/reference/events" />
+</Cards>
+
+---
+
+## Code
+
+- **[github.com/stackpatrol/stackpatrol](https://github.com/stackpatrol/stackpatrol)** — public, MIT-licensed Cargo workspace
+  - `crates/cli` — the `stackpatrol` binary
+  - `crates/core` — shared `Event` / `EventEnvelope` / token types
+
+The control plane (API, dashboard, bot, delivery infrastructure) is closed source and operated by us.

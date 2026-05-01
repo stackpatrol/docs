@@ -1,0 +1,86 @@
+---
+title: TCP ports probe
+description: Reachability checks for arbitrary host:port targets.
+icon: Network
+---
+
+# TCP ports probe
+
+A simple "can I open a TCP socket to this host:port" check. Useful for catching the case where a service is `running` but isn't actually listening — or where an upstream you depend on (a database, a cache, an internal API) drops off.
+
+| Source | `crates/cli/src/probe_ports.rs` |
+|:-------|:--------------------------------|
+| Default | **opt-in** (specify `targets`) |
+| Configures via | `[probes.ports]` in `config.toml` |
+
+---
+
+## What it reports
+
+| Event | When it fires |
+|:------|:--------------|
+| `port_unreachable` | `connect()` fails or times out for **2 consecutive ticks** |
+| `port_reachable` | A previously unreachable target accepts a connection |
+
+The 2-tick threshold avoids flapping on a single dropped SYN. With the default 30s tick, that's ~60 seconds of unreachability before an alert fires.
+
+---
+
+## Configuration
+
+```toml
+[probes.ports]
+enabled = true
+timeout_ms = 1500
+
+targets = [
+  { host = "127.0.0.1", port = 5432, name = "postgres" },
+  { host = "127.0.0.1", port = 6379, name = "redis"    },
+  { host = "10.0.1.10", port = 80,   name = "internal-api" },
+  { host = "queue.internal", port = 5672, name = "rabbitmq" },
+]
+```
+
+| Key | Type | Default | Description |
+|:----|:-----|:--------|:------------|
+| `enabled` | bool | `false` | Set to `true` to enable |
+| `timeout_ms` | u64 | `1500` | Connect timeout per target |
+| `targets` | array of table | `[]` | One row per port |
+
+Each `targets[]` row:
+
+| Field | Required | Description |
+|:------|:---------|:------------|
+| `host` | yes | IPv4, IPv6, or DNS name |
+| `port` | yes | TCP port (1–65535) |
+| `name` | no | Pretty name shown in Telegram alerts (defaults to `host:port`) |
+
+DNS resolution is per-tick — if your DNS server itself goes down, the probe will report unreachability on every target that needs DNS.
+
+---
+
+## What you'll see in Telegram
+
+```
+🔴 web-1 — postgres is unreachable
+   port_unreachable · 127.0.0.1:5432 (connection refused)
+
+✅ web-1 — postgres is reachable again
+   port_reachable · 127.0.0.1:5432 (47ms)
+```
+
+---
+
+## When to use it
+
+- **Belt and suspenders** for services that have other probes — a Postgres container that's `running` but crashed inside and stopped accepting connections.
+- **External dependencies** you don't run yourself — an upstream API that your stack relies on.
+- **Quick smoke check** that a load balancer is forwarding to a healthy backend.
+
+---
+
+## What it doesn't do
+
+- **No HTTP semantics.** A 200, 500, and 404 are all "the port is reachable." For application-level health checks, wait for **custom check scripts** in Phase 2.
+- **No TLS verification.** TCP connect succeeds whether or not certificates are valid. The probe doesn't speak TLS.
+- **No UDP probes.** UDP is connectionless — see [the rationale](/guide/monitoring) for why we skipped it at v1.

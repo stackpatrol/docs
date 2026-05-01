@@ -1,0 +1,40 @@
+---
+title: Free
+description: One server, 24h history, full probe coverage. $0/mo.
+---
+
+# Free — $0/mo
+
+The Free tier exists so you can monitor your single side-project VPS without paying anything. It's not a stripped-down trial — every probe and every alert path is identical to Pro.
+
+---
+
+## What you get
+
+- **1 server**
+- **All probes** — Docker, systemd, TCP ports, disk, memory, load
+- **Telegram alerts** + recovery alerts
+- **24-hour alert history**
+- **60-second alert coalescing**
+- **3-minute heartbeat-based offline detection**
+
+That's the full v1 product, capped at one server.
+
+---
+
+## The 24h history limit
+
+The `events` and `alerts` rows for Free-tier servers are pruned after 24 hours. You'll still get realtime Telegram messages — only the *historical lookup* is limited.
+
+If you need to look back further than yesterday (incident review, auditing, "did this happen last week?"), upgrade to **Pro** for 30-day retention or **Team** for 90.
+
+---
+
+## What's not on Free
+
+- **Multi-channel alerts** — Free is Telegram-only at v1. Email / Discord / Slack ship in Pro (Phase 2).
+- **Hosted dashboard** — `app.stackpatrol.dev` is a Pro+ feature.
+- **Public status page** — Pro+ only.
+- **Custom check scripts** — Pro+ only.
+
+If your single server outgrows Free, [upgrade to Pro](./pro) — same setup, more headroom.

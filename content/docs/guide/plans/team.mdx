@@ -1,0 +1,64 @@
+---
+title: Team
+description: 50 servers, 90-day history, multi-user workspaces, on-call rotation. $20/mo.
+icon: Crown
+---
+
+# Team — $20/mo
+
+For small teams that need more than one human in the loop. Lands in **Phase 3** (Nov 2026 – Apr 2027) — the v1 ship is Free + Pro only.
+
+---
+
+## What you'll get
+
+Everything in [Pro](./pro), plus:
+
+- **50 servers** (vs 10 on Pro)
+- **90-day alert history** (vs 30 on Pro)
+- **Multi-user workspaces** with `owner` / `responder` / `viewer` roles
+- **Group-chat alerts** — Telegram groups with per-server topics for threading
+- **On-call rotation** — assign primary / secondary / escalation per shift
+- **Per-seat add-ons** — $5 per extra seat above the included headcount
+- **Native iOS + Android apps** with push notifications, biometric unlock for command confirmation, inline restart/silence/ack
+
+---
+
+## Workspace roles
+
+| Role | What they can do |
+|:-----|:-----------------|
+| Owner | Manage billing, invite/remove members, full control |
+| Responder | Acknowledge alerts, set silences, run remote commands |
+| Viewer | Read-only — see alerts and dashboards, can't act |
+
+Roles are workspace-scoped. A human can be in multiple workspaces with different roles in each.
+
+---
+
+## On-call rotation
+
+Phase 3 introduces a simple rotation system:
+
+- Define a **rotation** (e.g. "weekday daytime", "weekend on-call")
+- Assign **shifts** (`Mon 09:00–17:00 → Alex`, `Mon 17:00–09:00 → Sam`)
+- Configure **escalation** (page secondary if primary doesn't ack within 10 min)
+
+Alerts route to whoever's on shift, with optional secondary fallback. Escalation walks up the chain until somebody acks.
+
+---
+
+## When Team beats Pro
+
+- You've outgrown 10 servers.
+- More than one human needs to see alerts.
+- You want different humans paged at different times.
+- You want a single chat where the whole team sees the day's incidents (Telegram group with topics).
+
+---
+
+## Phase 3 release timing
+
+Realistic ship: **Q1 2027**. Mobile apps are the heaviest part of Phase 3 (native iOS + Android, APNs + FCM wiring, app store review). The non-mobile pieces (workspaces, rotation, group-chat) may land earlier as a "Team Lite" tier — see [the roadmap](https://github.com/stackpatrol/stackpatrol) for current status.
+
+If you need rotation today and can't wait, the workaround is to share a single Pro account between team members and route alerts to a private Telegram group (manual setup). That's not great long-term, but it works.

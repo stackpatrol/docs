@@ -1,0 +1,78 @@
+---
+title: Alert coalescing
+description: How a flapping container doesn't spam your Telegram chat.
+icon: MessageSquare
+---
+
+# Alert coalescing
+
+If a container crash-looped 50 times in 5 minutes, you don't want 50 Telegram messages. StackPatrol coalesces duplicate alerts inside a sliding window so you get **one** alert per incident.
+
+---
+
+## The rule
+
+> If a new event arrives with the same `(server_id, kind)` as an existing alert, **and that existing alert is less than 60 seconds old**, the new event is folded into the old alert. No duplicate Telegram message.
+
+That's it. 60-second window, per `(server, alert kind)`.
+
+The window slides from the **most recent** event, not the alert's first occurrence — so as long as new events keep arriving faster than every 60s, the alert stays coalesced.
+
+---
+
+## What `kind` means
+
+The alert engine maps each event to a `kind`:
+
+| Event | Coalesces under kind |
+|:------|:---------------------|
+| Docker `service_down` | `service_down:<service>` |
+| Docker `service_up` | `service_up:<service>` |
+| systemd `service_down` | `service_down:<unit>` |
+| TCP port unreachable | `port_unreachable:<host>:<port>` |
+| TCP port reachable | `port_reachable:<host>:<port>` |
+| Disk threshold | `disk_warning:<mount>` / `disk_critical:<mount>` |
+| Memory threshold | `memory_warning` |
+| Load threshold | `load_warning` |
+| Host unreachable | `host_unreachable` |
+| Host recovered | `host_recovered` |
+
+So a flapping `nginx.service` that bounces 50 times in a minute coalesces into one `service_down:nginx.service` alert. But `nginx` flapping while `postgres` is also flapping produces *two* alerts (different `kind`).
+
+---
+
+## What it looks like in practice
+
+```
+12:00:00  nginx exits     (event #1)  → 🔴 alert sent
+12:00:30  nginx exits     (event #2)  → coalesced (no new message)
+12:00:45  nginx exits     (event #3)  → coalesced
+12:01:15  nginx exits     (event #4)  → coalesced (window slid forward)
+12:02:30  nginx exits     (event #5)  → 🔴 NEW alert (>60s gap from #4)
+```
+
+So a sustained flap during one incident → one alert. The 60-second window is intentionally short; if a service flaps with quiet gaps longer than 60s, that's two separate incidents and you get two notifications.
+
+---
+
+## Why 60 seconds
+
+This was a deliberate choice during the build:
+
+- **Long enough** that a typical crash-loop (every 5–30s) coalesces into one alert.
+- **Short enough** that a recovery + new failure 90 seconds later is reported as a fresh incident.
+- Matches Telegram's **30 msg/sec global** rate-limit comfortably even at scale.
+
+If you find 60 seconds too aggressive (or too lax), there's no per-customer override at v1. A configurable window may land in Phase 2.
+
+---
+
+## Recovery messages don't coalesce
+
+A `service_up` event always emits an alert if a corresponding `service_down` was active. We never collapse the recovery message into "just stop alerting" — see [Recovery alerts](./recovery) for why.
+
+---
+
+## Debugging an unexpectedly-quiet alert
+
+If you expected an alert and didn't get one, the most common cause is coalescing: the same `(server_id, kind)` already had an active alert within the 60-second window, so the new event folded into it. Check the [Telegram bot](./telegram) `/recent` view to see which alerts grouped together.

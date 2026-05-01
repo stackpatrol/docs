@@ -1,0 +1,111 @@
+---
+title: Resources probe
+description: Disk, memory, and load average thresholds.
+icon: HardDrive
+---
+
+# Resources probe
+
+The catch-all for the "is this box healthy?" signals: per-mount disk usage, total memory used, and 1m/5m/15m load averages.
+
+| Source | `crates/cli/src/probe_resources.rs` |
+|:-------|:------------------------------------|
+| Default | always on |
+| Configures via | `[probes.resources]` in `config.toml` |
+
+This probe runs even with the most minimal config — that's why a server with no Docker / systemd / port config still gets meaningful alerts.
+
+---
+
+## What it reports
+
+| Event | Default threshold |
+|:------|:------------------|
+| `disk_warning` | per mount, `disk_warn_percent = 80` |
+| `disk_critical` | per mount, `disk_critical_percent = 90` |
+| `memory_warning` | `memory_warn_percent = 85` |
+| `load_warning` | only if you set `load_warn_*` |
+
+Each event fires once per **state change** — once a mount crosses 80%, you get one alert, not one per tick. When usage drops back under the threshold, you get a recovery alert.
+
+---
+
+## Configuration
+
+```toml
+[probes.resources]
+enabled = true
+
+# Disk thresholds (per mount)
+disk_warn_percent     = 80
+disk_critical_percent = 90
+
+# Memory threshold (total used)
+memory_warn_percent = 85
+
+# Load average thresholds (any can be omitted)
+load_warn_1m  = 4.0
+load_warn_5m  = 3.0
+load_warn_15m = 2.0
+```
+
+| Key | Type | Default | Description |
+|:----|:-----|:--------|:------------|
+| `enabled` | bool | `true` | |
+| `disk_warn_percent` | u8 | `80` | Per-mount warn |
+| `disk_critical_percent` | u8 | `90` | Per-mount critical |
+| `memory_warn_percent` | u8 | `85` | Total memory used % |
+| `load_warn_1m` | f64 | unset | 1-minute load average |
+| `load_warn_5m` | f64 | unset | 5-minute load average |
+| `load_warn_15m` | f64 | unset | 15-minute load average |
+
+Setting a `load_warn_*` to a value the system can never produce (e.g. `load_warn_1m = 1000`) is a fine way to keep that horizon's threshold "off" without removing the key.
+
+---
+
+## What gets measured
+
+### Disk
+
+Every mounted filesystem in `/proc/mounts` is measured, with these exceptions filtered out:
+
+- `tmpfs`, `devtmpfs`, `proc`, `sysfs`, `cgroup*`, `overlay`, `squashfs`
+- Read-only mounts (Docker layer mounts, snap mounts)
+- Bind mounts of the same underlying filesystem (deduplicated by device)
+
+Each remaining mount is reported as `(mount_path, used_percent)` and checked against the `disk_warn_percent` / `disk_critical_percent` thresholds independently.
+
+### Memory
+
+Used = `MemTotal - MemAvailable` (the kernel's "what an app could allocate without swapping" definition). Cached / buffered memory is **not** counted as "used."
+
+### Load
+
+Read straight from `/proc/loadavg`. The values are normalized for "load per CPU" only if you explicitly set the threshold for normalized load — otherwise the threshold is absolute. Pick a value that makes sense for *your* core count.
+
+---
+
+## What you'll see in Telegram
+
+```
+🔴 web-1 — disk warning on /var
+   disk_warning · /var at 84% (50.4 GB / 60 GB)
+
+🔴 web-1 — memory warning
+   memory_warning · 87% used (3.5 GB / 4.0 GB)
+
+🔴 web-1 — load warning
+   load_warning · 1m=4.7 (threshold 4.0)
+
+✅ web-1 — /var is back below 80%
+   disk_recovery · /var at 73% (43.8 GB / 60 GB)
+```
+
+---
+
+## Tips
+
+- **Set thresholds with headroom.** A disk that crosses 90% during a backup at 3 AM is just noise; aim to be alerted at the level where you'd actually want to act.
+- **Memory thresholds vary by workload.** A Postgres box happily sitting at 90% memory used (because of its shared buffers) isn't unhealthy. Set `memory_warn_percent` to match your normal-state baseline + 10–15%.
+- **Load is per-core relative.** A 1m load of 4 means *something* on a 4-core box and *trouble* on a 1-core box. Pick thresholds with your core count in mind.
+- **Quiet a noisy mount with a silence window.** Some block storage mounts (snap, zfs auto-mounts) can briefly fill during reorgs. If a recurring mount produces false alerts, schedule a recurring silence (Phase 2 feature).

@@ -1,0 +1,100 @@
+---
+title: Token format
+description: How sp_live_… tokens are structured, validated, and stored.
+icon: KeyRound
+---
+
+# Token format
+
+Every server registers with a **`sp_live_…`** token issued by the bot. The format is designed to support fast indexed lookup without ever storing the raw secret.
+
+---
+
+## Format
+
+```
+sp_live_<prefix>_<secret>
+```
+
+| Part | Length | Encoding | Example |
+|:-----|:-------|:---------|:--------|
+| `sp_live` | 7 | literal | `sp_live` |
+| `prefix` | 8 chars | base32 | `k7m4nx21` |
+| `_` | 1 | separator | `_` |
+| `secret` | 32 chars | base32 | `g3hk2jx9p1q4r7s5t8u0v6w2y4z1a3b5` |
+
+Total: ~50 characters. The prefix half is just for fast lookup; the secret half is what proves identity.
+
+The `live` segment is reserved for the production environment. `sp_test_…` may show up later for ephemeral test tokens — at v1 only `sp_live_…` is in use.
+
+---
+
+## Issuance flow
+
+When you tap **➕ Add server** in the Telegram bot:
+
+1. The API generates two random base32 strings (prefix + secret)
+2. The plaintext token is **never persisted** — only:
+   - `prefix` stored in plaintext (indexed)
+   - a one-way hash of `secret` stored alongside it
+3. The plaintext token is returned to the bot, shown to you **once**
+
+If you lose the token, you need to rotate it (issue a new one) — there's no way to recover the original from the database.
+
+Plan-limit enforcement (Free 1, Pro 10, Team 50) is applied at issuance time and rejects with a clear error when exceeded.
+
+---
+
+## Validation flow
+
+When the CLI POSTs to `/api/v1/events` with `Authorization: Bearer sp_live_…`:
+
+1. **Parse** — the API splits into `prefix` and `secret` halves
+2. **Lookup by prefix** — indexed query (constant-time at the DB level)
+3. **Hash-compare** — compare the supplied secret half against the stored hash
+4. **Load server** — confirm it's not revoked
+5. **Update last-seen** — write `last_seen_at = NOW()` and flip `status = 'online'` if it was `offline`
+
+The lookup-by-prefix-then-hash pattern means we never do an O(N) scan over all tokens, and the hashing cost means leaked database snapshots can't be brute-forced cheaply.
+
+---
+
+## Rotation & revocation
+
+### Rotation (planned, Phase 1 follow-on)
+
+Issuing a new token for an existing server. The old token is marked `revoked` (still in the table for audit) and the new one is what the CLI uses going forward. The bot will offer a `/rotate <server>` command.
+
+### Revocation (planned, Phase 1 follow-on)
+
+Marking a token `revoked` without issuing a replacement. Subsequent validation attempts reject with 401. Typical use: a server is decommissioned and you want its token invalidated immediately.
+
+### What you can do today
+
+Until rotation/revocation ship: deleting the `server` row in the database (manual op for now) invalidates the token because the lookup will fail to find an owning server. That's the v0 manual path.
+
+---
+
+## Security properties
+
+- **Per-server scope.** A leaked token only exposes events for one server, not the whole account.
+- **No plaintext at rest.** Database snapshots don't leak tokens.
+- **Slow hashing.** Verifies are calibrated to `<100ms` server-side, making brute-force against leaked snapshots expensive.
+- **TLS in transit.** The CLI uses rustls (no system OpenSSL). The control plane terminates TLS at the edge.
+- **Constant-time lookup.** Prefix index avoids timing channels via row-count differences.
+
+---
+
+## What goes into the config file
+
+```toml
+token = "sp_live_k7m4nx21_g3hk2jx9p1q4r7s5t8u0v6w2y4z1a3b5"
+```
+
+Or via env var:
+
+```
+STACKPATROL_TOKEN=sp_live_k7m4nx21_g3hk2jx9p1q4r7s5t8u0v6w2y4z1a3b5 stackpatrol daemon
+```
+
+The CLI prefers the env var when both are set.

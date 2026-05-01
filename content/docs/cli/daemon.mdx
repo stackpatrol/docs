@@ -1,0 +1,120 @@
+---
+title: stackpatrol daemon
+description: The long-running process that runs probes, sends heartbeats, and reports events.
+---
+
+# `stackpatrol daemon`
+
+The long-lived process. Run this under systemd in production.
+
+```bash
+stackpatrol daemon
+```
+
+---
+
+## What it does on each tick
+
+Every `daemon.heartbeat_interval_secs` (default: **30s**, minimum: **5s**) the daemon:
+
+1. Runs each enabled probe (`docker`, `systemd`, `ports`, `resources`)
+2. Diffs the current state against the previous tick — only state changes become events
+3. Always emits a `heartbeat` event so the control plane knows the daemon is alive
+4. Drains any events buffered from previous failed POSTs (`~/.local/share/stackpatrol/buffer.jsonl`)
+5. Submits everything in one `EventEnvelope` POST to `/api/v1/events`
+6. On HTTP 5xx / network error: retries with bounded exponential backoff, then appends to the buffer
+
+The daemon is single-threaded with a tokio runtime. Memory usage is typically **~5–10 MiB RSS**.
+
+---
+
+## Lifecycle
+
+| Signal | Effect |
+|:-------|:-------|
+| `SIGTERM` | Drain in-flight tick, flush buffer, exit `0` |
+| `SIGINT` (Ctrl-C) | Same as SIGTERM |
+| `SIGHUP` | Reload config (planned, M4 stretch) |
+| Any uncaught panic | Exit `1` — systemd's `Restart=on-failure` brings it back |
+
+The `Restart=on-failure` policy in `packaging/stackpatrol.service` means transient daemon crashes self-heal. The control plane's offline detector catches the case where the daemon dies and somehow doesn't restart.
+
+---
+
+## Flags
+
+| Flag | Default | Description |
+|:-----|:--------|:------------|
+| `--interval <secs>` | from config | Override `daemon.heartbeat_interval_secs` for this run |
+| `--once` | off | Run a single tick and exit (useful for cron-driven setups) |
+| `--no-buffer` | off | Disable the on-disk buffer; drop events on failed POST |
+| `--dry-run` | off | Run probes and print events to stdout without sending |
+
+---
+
+## Output
+
+The daemon logs to **stderr** in human-readable format. Set `RUST_LOG` or use `-v` / `-vv` to control verbosity:
+
+```bash
+RUST_LOG=stackpatrol=debug stackpatrol daemon
+```
+
+```
+2026-04-27T12:00:00Z INFO  daemon: tick #1
+2026-04-27T12:00:00Z DEBUG probe_docker: 4 containers running, 0 unhealthy
+2026-04-27T12:00:00Z DEBUG probe_systemd: 3 units active, 0 failed
+2026-04-27T12:00:00Z INFO  client: events accepted (4 events, 1 heartbeat)
+```
+
+Plug `RUST_LOG=trace` in if you're debugging — every probe call logs its raw output.
+
+---
+
+## The on-disk buffer
+
+If a tick can't reach the control plane (network blip, API redeploy, certificate hiccup), events go to:
+
+```
+~/.local/share/stackpatrol/buffer.jsonl
+```
+
+(`$XDG_DATA_HOME/stackpatrol/buffer.jsonl` if `XDG_DATA_HOME` is set.)
+
+One JSON-encoded `EventEnvelope` per line. The buffer drains on the next successful tick. There's no upper bound today — if your control plane is down for a week and your server is busy, the file will grow. A bounded ring buffer is on the v1 stretch list.
+
+---
+
+## Running under systemd
+
+Copy the unit file from `packaging/stackpatrol.service`:
+
+```ini
+[Unit]
+Description=StackPatrol agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/stackpatrol daemon
+Restart=on-failure
+RestartSec=5s
+User=stackpatrol
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo useradd -r -s /usr/sbin/nologin stackpatrol
+sudo cp packaging/stackpatrol.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now stackpatrol
+sudo journalctl -u stackpatrol -f
+```
+
+> **Permissions note.** The `systemd` probe needs read access to D-Bus; the `docker` probe needs to talk to `/var/run/docker.sock`. Add the `stackpatrol` user to the `docker` group (or set the unit file's `User=root` if you'd rather not), and to the `systemd-journal` group if you want to read service logs.

@@ -1,0 +1,64 @@
+---
+title: StackPatrol Documentation
+description: StackPatrol is a Rust CLI + Telegram bot that pings you when your servers misbehave.
+icon: Home
+---
+
+# Welcome to StackPatrol
+
+**StackPatrol** is a server monitoring tool for indie devs, homelab operators, and small teams. Drop a single Rust binary on each server, link it to our Telegram bot, and you get pinged the moment something breaks — services down, disk full, host unreachable.
+
+No SaaS dashboard required. No infrastructure to run. Setup takes about 60 seconds.
+
+---
+
+## How it works in one paragraph
+
+You install the `stackpatrol` CLI on your server, run `stackpatrol init`, paste in a token issued by [@StackPatrolBot](https://t.me/StackPatrolBot), and start the daemon. The CLI watches Docker Compose stacks, systemd units, TCP ports, disk, memory, and load — and reports events to our managed control plane. When something breaks, the bot messages you on Telegram. When it recovers, you get a ✅ recovery alert.
+
+<Cards>
+  <Card title="Quick Start" href="/quick-start" />
+  <Card title="What is StackPatrol?" href="/what-is-stackpatrol" />
+  <Card title="Why StackPatrol?" href="/why-stackpatrol" />
+  <Card title="How It Works" href="/how-it-works" />
+</Cards>
+
+---
+
+## What you can monitor (today)
+
+| Probe | What it checks |
+|:------|:---------------|
+| Docker Compose | Container `running` / `exited` / `restarting` state across one or more compose projects |
+| systemd units | Active state of any systemd-managed service (`active` / `failed` / `inactive`) |
+| TCP ports | Reachability of arbitrary host:port targets (HTTP backends, databases, internal services) |
+| Disk | Used % per mount; alert thresholds per disk |
+| Memory | Used % of total memory |
+| Load average | 1m / 5m / 15m load thresholds |
+| Heartbeat | If the daemon stops reporting, the control plane synthesizes a `host_unreachable` alert |
+
+UDP probes are deferred — see [Why StackPatrol](/why-stackpatrol) for the rationale.
+
+---
+
+## What it costs
+
+| Plan | Price | Servers | Alert history |
+|:-----|:------|:--------|:--------------|
+| Free | $0 | 1 | 24h |
+| Pro | $5/mo | 10 | 30 days |
+| Team | $20/mo | 50 | 90 days |
+
+One axis: server count. No per-message charges. No surprise bills during incidents.
+
+<Cards>
+  <Card title="Plans Overview" href="/guide/plans" />
+  <Card title="CLI Reference" href="/cli" />
+  <Card title="Built-in Probes" href="/guide/monitoring" />
+</Cards>
+
+---
+
+## Status
+
+**Pre-release.** v1 ship target: **2026-07**. The CLI builds, the control plane runs, the bot issues tokens, and end-to-end alerts work today. Public release coming soon. Watch [github.com/stackpatrol/stackpatrol](https://github.com/stackpatrol/stackpatrol) or join the waitlist at [stackpatrol.dev](https://stackpatrol.dev).

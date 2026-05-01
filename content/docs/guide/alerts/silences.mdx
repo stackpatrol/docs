@@ -1,0 +1,73 @@
+---
+title: Silences
+description: Suppress alerts during planned maintenance, deploys, or known-flaky windows.
+icon: ShieldCheck
+---
+
+# Silences
+
+A silence tells the alert engine "I know about this; don't message me." Use them during planned maintenance, deploys, or for chronic noisy probes you haven't gotten around to fixing yet.
+
+---
+
+## How silences work
+
+A silence is a row in the `silences` table with:
+
+- `server_id` (or `*` for all servers in your account)
+- Optional `kind` filter (e.g. `disk_warning`, `service_down:nginx`)
+- `starts_at` and `ends_at` timestamps
+
+The alert engine checks every incoming event against active silences. If an event matches, the alert is **created** in the database (so it shows up in history) but **no Telegram message is sent**.
+
+When the silence expires, normal alerting resumes — including a fresh notification for any state that's still in alarm.
+
+---
+
+## How to set a silence
+
+### Inline reply on an alert (Phase 1 stretch)
+
+Reply to any 🔴 alert with `/silence 30m` and the bot creates a silence scoped to that `(server, kind)` pair for 30 minutes. Useful when you're acknowledging an alert and starting to debug.
+
+### Bot command
+
+```
+/silence web-1 30m
+/silence web-1 disk_warning 2h
+/silence all 6h
+```
+
+Args:
+
+1. **server name** or `all`
+2. (optional) **kind** to filter on
+3. **duration** — `30m`, `2h`, `1d`, etc.
+
+The bot replies with the silence ID and expiry time. Type `/silences` to list active silences, `/unsilence <id>` to clear one early.
+
+### Web dashboard (Phase 2)
+
+`app.stackpatrol.dev` will have a silences UI for scheduling recurring windows ("every Sunday 02:00–04:00 for the backup job") which the bot doesn't expose at v1.
+
+---
+
+## Silence durations
+
+There's no upper bound on duration — you can silence something "indefinitely" by using a far-future date. We don't recommend it: a permanent silence on `service_down:nginx` is just a way to forget that nginx is broken.
+
+If you find yourself wanting a permanent silence, the right fix is usually:
+
+- **Scope the probe more tightly** — exclude that one noisy service in `[probes.docker].exclude`
+- **Adjust the threshold** — if `disk_warn_percent = 80` is too aggressive for `/var`, raise it
+- **Disable the probe entirely** — set `enabled = false` for that probe family
+
+---
+
+## What silences don't do
+
+- **Silences don't pause the daemon.** Events still POST to the API and persist in the `events` table; only the Telegram delivery is suppressed.
+- **Silences don't apply retroactively.** A silence created after an alert went out doesn't pull the message back.
+- **Silences don't suppress recoveries.** When the underlying state recovers, you get a `✅` even mid-silence — that way you know the silence was for a real-but-resolved problem.
+
+That last one is intentional. It would be too easy to silence something, forget about it, and never realize it self-resolved (or got worse).

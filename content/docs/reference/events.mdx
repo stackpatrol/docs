@@ -1,0 +1,124 @@
+---
+title: Event schema
+description: The Event enum, EventEnvelope wire format, and POST /api/v1/events.
+icon: Code
+---
+
+# Event schema
+
+Everything the daemon sends, on the wire.
+
+---
+
+## The wire format
+
+Every POST from the CLI is an `EventEnvelope`:
+
+```json
+{
+  "server_token": "sp_live_k7m4nx21_g3hk2jx9p1q4r7s5t8u0v6w2y4z1a3b5",
+  "agent_version": "0.1.0",
+  "events": [
+    { "kind": "heartbeat",     "ts": "2026-04-27T12:00:00Z" },
+    { "kind": "service_down",  "ts": "2026-04-27T12:00:00Z", "subject": "nginx.service", "detail": "ActiveState=failed" }
+  ]
+}
+```
+
+A single envelope can carry many events — useful when the buffer drains after a network outage.
+
+> The token is also passed via `Authorization: Bearer …`. Sending it in the body too is redundant; this may be removed in a future schema version.
+
+The Rust types live in `crates/core/src/event.rs` (open-source CLI repo). The server validates the same shape on ingestion.
+
+---
+
+## The `Event` enum
+
+Every variant has `kind` and `ts`. Most carry a `subject` (which thing the event is about) and `detail` (free-form human-readable string).
+
+| `kind` | Subject | When emitted |
+|:-------|:--------|:-------------|
+| `heartbeat` | — | Every tick (default 30s) |
+| `service_down` | container/unit name | Docker container exits, systemd unit fails, container restarting >2 ticks |
+| `service_up` | container/unit name | A previously-down service returns to running/active |
+| `port_unreachable` | `host:port` | TCP connect fails 2 consecutive ticks |
+| `port_reachable` | `host:port` | A previously-unreachable port accepts a connection |
+| `disk_warning` | mount path | Mount crosses `disk_warn_percent` |
+| `disk_critical` | mount path | Mount crosses `disk_critical_percent` |
+| `disk_recovery` | mount path | Mount drops back below `disk_warn_percent` |
+| `memory_warning` | — | Total memory used % crosses `memory_warn_percent` |
+| `memory_recovery` | — | Memory drops back below threshold |
+| `load_warning` | which horizon (`1m`/`5m`/`15m`) | Load average crosses configured threshold |
+| `load_recovery` | horizon | Load drops back below threshold |
+| `host_unreachable` | — | **Synthesized server-side** when heartbeats stop for 3 minutes |
+| `host_recovered` | — | **Synthesized server-side** when a stale server starts reporting again |
+
+The last two are synthetic — only the control plane emits them. Everything else originates in the CLI.
+
+---
+
+## Idempotency
+
+Events do **not** carry a client-generated UUID at v1. Replay protection comes from:
+
+- The `(server_id, ts, kind, subject)` tuple being effectively unique (same probe, same tick)
+- Coalescing on the alert side — duplicate `(server_id, kind)` within 60s folds together
+- Most events are state-change-only — the daemon doesn't emit a `service_down` every tick, only on transitions
+
+If you need strict at-most-once semantics for downstream replay, add a UUID to each event in your fork — the schema is forward-compatible (the server ignores unknown fields).
+
+---
+
+## `POST /api/v1/events`
+
+```http
+POST /api/v1/events HTTP/1.1
+Host: api.stackpatrol.dev
+Authorization: Bearer sp_live_k7m4nx21_g3hk2jx9p1q4r7s5t8u0v6w2y4z1a3b5
+Content-Type: application/json
+
+{ "events": [ ... ] }
+```
+
+| Status | Meaning |
+|:-------|:--------|
+| `202 Accepted` | Envelope validated, events persisted, alert engine notified |
+| `400` | Bad envelope (validation failed) |
+| `401` | Token missing, malformed, or doesn't match |
+| `403` | Server is suspended (e.g. plan downgrade exceeded limits) |
+| `429` | Rate limited (highly unlikely at small scale) |
+| `5xx` | Control plane is unhealthy — CLI buffers and retries |
+
+---
+
+## Worked example
+
+A daemon tick that detects nginx crashed and a /var disk warning:
+
+```json
+{
+  "server_token": "sp_live_…",
+  "agent_version": "0.1.0",
+  "events": [
+    {
+      "kind": "heartbeat",
+      "ts": "2026-04-27T12:00:00Z"
+    },
+    {
+      "kind": "service_down",
+      "ts": "2026-04-27T12:00:00Z",
+      "subject": "nginx.service",
+      "detail": "ActiveState=failed (Result=exit-code)"
+    },
+    {
+      "kind": "disk_warning",
+      "ts": "2026-04-27T12:00:00Z",
+      "subject": "/var",
+      "detail": "84% (50.4 GB / 60 GB)"
+    }
+  ]
+}
+```
+
+The control plane responds with `202 Accepted` and you get two `🔴` Telegram messages (the heartbeat doesn't generate an alert).

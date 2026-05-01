@@ -1,0 +1,79 @@
+---
+title: systemd probe
+description: Watch the active state of any systemd-managed unit.
+icon: Cpu
+---
+
+# systemd probe
+
+Watches the active state of any systemd unit you list. Useful for the services that *don't* live in a Docker container — sshd, nginx on the host, postgresql installed via apt, your own `.service` units.
+
+| Source | `crates/cli/src/probe_systemd.rs` |
+|:-------|:---------------------------------|
+| Default | **opt-in** (you must list units) |
+| Configures via | `[probes.systemd]` in `config.toml` |
+
+---
+
+## What it reports
+
+| State transition | Event emitted |
+|:-----------------|:--------------|
+| `active` → `failed` | `service_down` |
+| `active` → `inactive` (when restart isn't expected) | `service_down` |
+| `failed` / `inactive` → `active` | `service_up` |
+| `activating` / `deactivating` | (no event — transient) |
+
+The probe reads the `ActiveState` property via D-Bus (no shelling out to `systemctl`).
+
+---
+
+## Configuration
+
+```toml
+[probes.systemd]
+enabled = true
+units = [
+  "nginx.service",
+  "postgresql.service",
+  "redis.service",
+  "ssh.service",
+]
+```
+
+| Key | Type | Default | Description |
+|:----|:-----|:--------|:------------|
+| `enabled` | bool | `false` | Set to `true` to enable |
+| `units` | array of string | `[]` | Unit names to monitor |
+
+The `.service` suffix is optional — `nginx` and `nginx.service` are equivalent. For non-service units (timers, sockets, mounts), include the suffix explicitly: `daily-backup.timer`, `data.mount`.
+
+---
+
+## Permissions
+
+The probe talks to the system D-Bus. On most distros the daemon needs no extra capabilities — `org.freedesktop.systemd1` allows read-only `GetUnit` calls from any user.
+
+If your distro is locked down, you may need to grant access via a polkit rule, or run the daemon as `root`. The shipped systemd unit runs as a dedicated `stackpatrol` user; tighten or relax that to taste.
+
+---
+
+## What you'll see in Telegram
+
+```
+🔴 web-1 — nginx is down
+   service_down · ActiveState=failed (Result=exit-code)
+
+✅ web-1 — nginx is back online
+   service_up · ActiveState=active (running 4s)
+```
+
+The `Result=` value (when available) is included so you don't have to SSH in to find out *why* it failed.
+
+---
+
+## Tips
+
+- **List only units you actually care about.** A short list is easier to reason about than 40 systemd units, most of which are oneshots that flap normally.
+- **Don't list timers** unless you really want pinged on every cron run. Timers transition `active` → `inactive` repeatedly.
+- **Mounts** can be flaky on cloud instances during maintenance windows — consider a silence window if your provider regularly remounts your volumes.

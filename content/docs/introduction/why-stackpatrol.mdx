@@ -1,0 +1,111 @@
+---
+title: Why StackPatrol?
+description: Why we built it, who it's for, and where it sits next to Uptime Kuma, Datadog, and Better Uptime.
+icon: Activity
+---
+
+# Why StackPatrol?
+
+There's no shortage of monitoring tools. Here's what's different about this one.
+
+---
+
+## Built for a specific kind of person
+
+StackPatrol is for:
+
+- **Indie devs** running 1–10 VPS instances
+- **Homelab operators** (/r/selfhosted, homelab Discord)
+- **Small teams** (3–20 people) running Docker Compose stacks
+- **Solo SaaS founders** who want monitoring that costs $5, not $50
+
+It is **not** for:
+
+- Enterprise SRE teams managing thousands of nodes
+- Kubernetes clusters (use Prometheus + Alertmanager)
+- Anyone who would happily pay Datadog prices
+- Anyone who refuses to use Telegram
+
+If you're in the first group, keep reading. If you're in the second, this isn't for you and that's fine.
+
+---
+
+## What's different
+
+### 1. 60-second setup via a Telegram bot
+
+Most monitoring stacks ask you to:
+
+1. Sign up on a website
+2. Verify email
+3. Generate an API key
+4. Configure a notification channel
+5. Hunt for a Telegram chat ID
+6. Set up a BotFather bot
+7. Wire it all to Alertmanager
+
+StackPatrol asks you to:
+
+1. Run `/start` on [@StackPatrolBot](https://t.me/StackPatrolBot)
+2. Tap "Add server"
+3. Paste the token into `~/.config/stackpatrol/config.toml`
+
+No dashboards to log into. No chat IDs to look up. No BotFather. The bot already exists; we run it.
+
+### 2. A single Rust binary, `<10 MB`
+
+The CLI is a static `musl` binary with `strip = "symbols"`, `lto = "thin"`, `panic = "abort"`. Current release size: **~3.6 MiB** on arm64. CI enforces a `≤ 10 MiB` size gate on every push.
+
+It runs fine on a Raspberry Pi. It uses pure-Rust dependencies (rustls, no OpenSSL), so cross-compilation is trivial. Linux amd64 and arm64 are supported at v1.
+
+### 3. Telegram-first alerts
+
+Telegram is what our target audience already uses for everything else. No PagerDuty subscription. No phone trees. No "did the email get filtered into spam?" guessing. The alert lands in the same chat list as everything else you care about.
+
+Multi-channel support (email, Discord, Slack) lands in **Phase 2** (Pro tier).
+
+### 4. One axis of pricing — server count
+
+| Plan | Price | Servers |
+|:-----|:------|:--------|
+| Free | $0 | 1 |
+| Pro | $5/mo | 10 |
+| Team | $20/mo | 50 |
+
+That's the entire pricing matrix. No per-message charges. No per-GB ingestion fees. No surprise bills during incidents (which is when you most need monitoring to *not* surprise you with a bill).
+
+### 5. Open CLI, closed backend
+
+You can read every line of code that runs on your servers — it's MIT on GitHub. You don't have to read every line of code that runs on **our** servers — that part is closed and operated by us. Same model as Sentry, PostHog, and Tailscale.
+
+---
+
+## How it compares
+
+| | StackPatrol | Uptime Kuma | Datadog | Better Stack |
+|:--|:-:|:-:|:-:|:-:|
+| Self-hosting required | No | Yes | No | No |
+| Single binary | ✅ | ❌ (Node + DB) | ❌ | ❌ |
+| Telegram-first | ✅ | Plugin | Plugin | Plugin |
+| Price for 10 servers | $5/mo | Free + your time | ~$150/mo | ~$30/mo |
+| Disk / mem / load probes | ✅ | ❌ (HTTP only) | ✅ | ❌ |
+| APM / tracing | ❌ | ❌ | ✅ | ❌ |
+
+**Uptime Kuma** is free and excellent if you're happy running another container. Our wedge is the indie dev who *doesn't* want to run another container.
+
+**Datadog** is a great product at 100x the price. Different audience.
+
+**Better Stack** is closer in spirit — but it's external probing first; ours is host-agent first.
+
+---
+
+## Where we're heading
+
+The roadmap (paraphrased):
+
+- **Phase 1 (Apr–Jul 2026):** Telegram-first v1. Free + Pro tier. Public CLI release.
+- **Phase 2 (Aug–Oct 2026):** Hosted dashboard at `app.stackpatrol.dev`. Stripe billing. Email / Discord / Slack channels.
+- **Phase 3 (Nov 2026 – Apr 2027):** Team tier with multi-user workspaces. Native iOS + Android apps with push notifications.
+- **Phase 4 (May 2027+):** Lightweight log aggregation. Custom user metrics. SSO, audit logs, RBAC.
+
+Things we're explicitly **not** building: a Kubernetes operator, full APM, a self-hostable control plane, a synthetic uptime probe network.

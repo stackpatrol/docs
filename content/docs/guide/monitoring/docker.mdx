@@ -1,0 +1,91 @@
+---
+title: Docker Compose probe
+description: Watch container state across one or more compose projects.
+icon: Boxes
+---
+
+# Docker Compose probe
+
+The Docker probe watches container state across all compose projects on the host (or a specific subset, if you want).
+
+| Source | `crates/cli/src/probe_docker.rs` |
+|:-------|:---------------------------------|
+| Default | auto-enabled if `/var/run/docker.sock` is accessible |
+| Configures via | `[probes.docker]` in `config.toml` |
+
+---
+
+## What it reports
+
+| State change | Event emitted |
+|:-------------|:--------------|
+| Container `running` → `exited` | `service_down` |
+| Container in `restarting` for **>2 ticks** | `service_down` |
+| Container `exited` / `restarting` → `running` | `service_up` |
+| New container appears in `running` | (no event — first sight is the new baseline) |
+
+Only **state changes** turn into events. A container that's been happily running since the last reboot doesn't generate noise.
+
+Containers with HEALTHCHECKs are evaluated on `(running AND healthy)`; a `running` but `unhealthy` container is treated as `service_down`.
+
+---
+
+## Configuration
+
+```toml
+[probes.docker]
+enabled = true
+
+# Limit to a single compose project (default: all projects)
+project = "my-stack"
+
+# Only these services emit events
+include = ["web", "db"]
+
+# Skip these services
+exclude = ["debug-shell"]
+```
+
+| Key | Type | Default | Description |
+|:----|:-----|:--------|:------------|
+| `enabled` | bool | auto-detect | Toggle the probe |
+| `project` | string | all projects | Limit to one Compose project |
+| `include` | array of string | all | Allow-list of service names |
+| `exclude` | array of string | none | Deny-list of service names |
+
+`include` and `exclude` are matched against the compose **service name**, not the container name. Compose containers are usually named `<project>_<service>_1` — the probe extracts `<service>`.
+
+---
+
+## Permissions
+
+The probe talks to `/var/run/docker.sock`. The user running the daemon needs read access:
+
+```bash
+sudo usermod -aG docker stackpatrol
+sudo systemctl restart stackpatrol
+```
+
+If you'd rather not put the daemon in the `docker` group, run it as `root` (set `User=root` in the systemd unit) — the rest of the hardening flags (`NoNewPrivileges`, `ProtectSystem=full`, `PrivateTmp=true`) still apply.
+
+---
+
+## What you'll see in Telegram
+
+```
+🔴 web-1 — web (my-stack) is down
+   service_down · my-stack/web exited (code=137)
+
+✅ web-1 — web (my-stack) is back online
+   service_up · my-stack/web running for 12s
+```
+
+The exit code (when available) is included in the alert summary.
+
+---
+
+## Limitations at v1
+
+- **Plain `docker run` containers** are detected, but their compose-project label is empty — they'll show as "service `<name>`" without a project prefix.
+- **Swarm mode** isn't tested. Compose Specification with Swarm overrides may misreport `replicated` services.
+- **Kubernetes pods** are out of scope — see [Why StackPatrol](/why-stackpatrol).

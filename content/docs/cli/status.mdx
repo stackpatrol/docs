@@ -1,0 +1,78 @@
+---
+title: stackpatrol status
+description: One-shot snapshot of system state, configured probes, and control-plane reachability.
+---
+
+# `stackpatrol status`
+
+A one-shot snapshot of how this server looks to StackPatrol right now. Run it anytime — it doesn't require the daemon to be running.
+
+```bash
+stackpatrol status
+```
+
+---
+
+## What it prints
+
+```
+StackPatrol — web-1
+  endpoint:        https://api.stackpatrol.dev   (reachable, 47ms)
+  version:         stackpatrol 0.1.0 (sp_live_xx…)
+
+  System
+    uptime:        7d 3h 12m
+    load avg:      0.42 / 0.31 / 0.28
+    memory:        43% used (1.7 GB / 4.0 GB)
+    disks:         /     28%   (12.4 GB / 50 GB)
+                   /var  17%   ( 8.5 GB / 60 GB)
+
+  Probes
+    docker         4 containers running, 0 unhealthy
+    systemd        3 units active   (nginx, postgresql, redis)
+    ports          2 reachable      (127.0.0.1:5432, 127.0.0.1:6379)
+
+  Buffer
+    queued events: 0
+    file size:     0 B
+
+  Last successful POST: 14s ago
+```
+
+Everything in one screen. If the control plane is unreachable, the `endpoint` line says `(unreachable)` and the rest still prints — useful for debugging without internet.
+
+---
+
+## What gets checked
+
+- **Reachability ping** — a low-cost `GET /healthz` to confirm the API is responding (no token required for that route)
+- **Token validation** — only printed if `--verify-token` is passed; defaults off so `status` is fast and non-allocating
+- **System resources** — same code path as `probe_resources` so what `status` shows is what gets reported
+- **Probe enumeration** — same code path as `daemon`, but a single tick
+
+If you want to know what events *would be* sent, use:
+
+```bash
+stackpatrol daemon --dry-run --once
+```
+
+---
+
+## Flags
+
+| Flag | Description |
+|:-----|:------------|
+| `--json` | Output a machine-readable JSON payload instead of the human format |
+| `--verify-token` | Send a token-authenticated noop request to confirm credentials are still valid |
+| `--no-system` | Skip the system-resources block (faster on slow VMs) |
+
+---
+
+## When to use it
+
+- After `init` — confirm the config file is read correctly
+- After editing `config.toml` — see which probes are now enabled
+- During an incident — confirm the daemon's view of the world matches yours
+- In a `cron` healthcheck — `stackpatrol status --json | jq .endpoint.reachable`
+
+The command exits `0` if the API is reachable and `1` if not — useful as a precondition in scripts.

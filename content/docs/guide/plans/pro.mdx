@@ -1,0 +1,56 @@
+---
+title: Pro
+description: 10 servers, 30-day history, hosted dashboard, multi-channel alerts. $5/mo.
+icon: Crown
+---
+
+# Pro — $5/mo
+
+The "I run a few servers and don't want this to be expensive" tier. Most StackPatrol users land here.
+
+---
+
+## What you get
+
+Everything in [Free](./free), plus:
+
+- **10 servers** (vs 1 on Free)
+- **30-day alert history** (vs 24h on Free)
+- **Hosted dashboard** at `app.stackpatrol.dev` *(Phase 2)*
+- **Email / Discord / Slack alert channels** *(Phase 2)*
+- **Public status page per workspace** *(Phase 2)*
+- **Custom check scripts** *(Phase 2)*
+- **Server-side enforcement** — the control plane upholds the limits, no client-side license keys
+
+The CLI binary is identical to Free. Limits are enforced server-side.
+
+---
+
+## When Pro starts being worth it
+
+You should be on Pro if any of:
+
+- **You have more than 1 server.** Free is hard-capped at 1.
+- **You want to look at alerts older than yesterday.** 24h vs 30 days.
+- **You want email / Discord / Slack** alongside Telegram (Phase 2).
+- **You want a web dashboard** with charts and an incident timeline (Phase 2).
+- **You want to write custom check scripts** for app-level health checks (Phase 2).
+- **You'd rather keep your monitoring bill at $5/mo than free** because the time-to-fix when something breaks is worth $5.
+
+---
+
+## Billing
+
+- **Stripe-managed.** Card / SEPA / wallet.
+- **No annual lock-in** at v1. Cancel anytime; access drops to Free at end of period.
+- **Server-count downgrades** are graceful — exceeding the new limit doesn't break monitoring; it blocks new server registrations until you free up slots.
+
+---
+
+## What's NOT in Pro
+
+- **Multi-user workspaces** — Pro is single-operator. If you need 2+ humans on the same workspace with different roles, [Team](./team) is the tier.
+- **On-call rotation** — Team only.
+- **SSO / SAML / audit logs** — Phase 4 enterprise.
+
+If you're a small team, you probably want [Team](./team).

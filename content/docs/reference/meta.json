@@ -1,0 +1,12 @@
+{
+  "title": "Reference",
+  "description": "Token format, event schema, architecture",
+  "root": true,
+  "icon": "FileText",
+  "pages": [
+    "index",
+    "architecture",
+    "tokens",
+    "events"
+  ]
+}

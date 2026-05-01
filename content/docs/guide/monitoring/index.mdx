@@ -1,0 +1,38 @@
+---
+title: Built-in Probes
+description: What the StackPatrol CLI watches by default.
+icon: Activity
+---
+
+# Built-in Probes
+
+The CLI ships with four probe families. Each runs once per daemon tick (default: every 30 seconds).
+
+| Probe | Source | Default | Configures via |
+|:------|:-------|:--------|:---------------|
+| Docker Compose | `crates/cli/src/probe_docker.rs` | auto-enabled if `/var/run/docker.sock` exists | `[probes.docker]` |
+| systemd units | `crates/cli/src/probe_systemd.rs` | opt-in (specify `units`) | `[probes.systemd]` |
+| TCP ports | `crates/cli/src/probe_ports.rs` | opt-in (specify `targets`) | `[probes.ports]` |
+| Resources (disk/mem/load) | `crates/cli/src/probe_resources.rs` | always on | `[probes.resources]` |
+
+The daemon also emits a **heartbeat** event on every tick — that's how the control plane knows the agent is alive. If the heartbeat stops for 3 minutes, the offline detector synthesizes a `host_unreachable` alert.
+
+---
+
+## What the probes don't do
+
+- **No external probes.** The CLI runs *on* the host. External uptime probes (hitting your public URL from another network) are explicitly out of scope at v1.
+- **No UDP probes.** Generic UDP "is something listening?" isn't useful — UDP is connectionless, so a packet that returns nothing is indistinguishable from one that landed and was processed silently. Protocol-specific probes (DNS query, NTP request) might land in Phase 2 if there's demand.
+- **No log scraping.** Lightweight log aggregation is on the **Phase 4** roadmap. v1 watches state, not logs.
+- **No custom check scripts.** Coming in **Phase 2** as a Pro-tier feature.
+
+---
+
+## Per-probe pages
+
+<Cards>
+  <Card title="Docker Compose probe" href="/guide/monitoring/docker" />
+  <Card title="systemd probe" href="/guide/monitoring/systemd" />
+  <Card title="TCP ports probe" href="/guide/monitoring/ports" />
+  <Card title="Resources probe" href="/guide/monitoring/resources" />
+</Cards>

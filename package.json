@@ -15,6 +15,7 @@
     "fumadocs-ui": "^16.4.0",
     "geist": "^1.5.1",
     "lucide-react": "^0.562.0",
+    "mermaid": "^11.14.0",
     "next": "^16.1.1",
     "react": "^19.2.3",
     "react-dom": "^19.2.3"

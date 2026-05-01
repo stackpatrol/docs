@@ -1,0 +1,168 @@
+---
+title: config.toml reference
+description: Every key in the StackPatrol CLI config file, with defaults and examples.
+---
+
+# `config.toml` reference
+
+The CLI reads its config from a TOML file at:
+
+| OS | Path |
+|:---|:-----|
+| Linux | `~/.config/stackpatrol/config.toml` |
+| macOS | `~/Library/Application Support/stackpatrol/config.toml` |
+| Override | `--config <path>` on any command |
+
+`stackpatrol init` writes a sensible default. You can edit by hand or rerun `init`.
+
+---
+
+## Minimal example
+
+```toml
+server_name  = "web-1"
+api_endpoint = "https://api.stackpatrol.dev"
+token        = "sp_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+```
+
+That's enough to start the daemon — every probe runs with default thresholds.
+
+---
+
+## Full example
+
+```toml
+server_name  = "web-1"
+api_endpoint = "https://api.stackpatrol.dev"
+token        = "sp_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+[daemon]
+heartbeat_interval_secs = 30  # min 5
+
+[probes.docker]
+enabled = true
+# project = "my-stack"   # optional — limit to one compose project
+# include = ["web", "db"]  # optional — only these services
+# exclude = ["debug"]      # optional — ignore these services
+
+[probes.systemd]
+enabled = true
+units = ["nginx.service", "postgresql.service", "redis.service"]
+
+[probes.ports]
+enabled = true
+targets = [
+  { host = "127.0.0.1", port = 5432, name = "postgres" },
+  { host = "127.0.0.1", port = 6379, name = "redis"    },
+]
+timeout_ms = 1500
+
+[probes.resources]
+enabled = true
+disk_warn_percent     = 80
+disk_critical_percent = 90
+memory_warn_percent   = 85
+load_warn_1m          = 4.0   # alert if 1-minute load > 4.0
+```
+
+---
+
+## Top-level keys
+
+| Key | Type | Default | Description |
+|:----|:-----|:--------|:------------|
+| `server_name` | string | required | Friendly name shown in Telegram alerts |
+| `api_endpoint` | URL | `https://api.stackpatrol.dev` | Override only for self-hosted/dev |
+| `token` | string | required | The `sp_live_…` token issued by the bot |
+
+---
+
+## `[daemon]`
+
+| Key | Type | Default | Description |
+|:----|:-----|:--------|:------------|
+| `heartbeat_interval_secs` | u64 | `30` | How often the daemon ticks. Min `5`, no upper bound. |
+
+A 30-second tick means up to a 30-second delay before a state change becomes an alert. Combined with the control plane's 60-second coalescing window, expect typical detection-to-Telegram latency of **30–90 seconds** at default settings.
+
+---
+
+## `[probes.docker]`
+
+Watches Docker Compose projects and reports container state changes.
+
+| Key | Type | Default | Description |
+|:----|:-----|:--------|:------------|
+| `enabled` | bool | `true` if `/var/run/docker.sock` is accessible | Disable to skip the probe |
+| `project` | string | all projects | Limit to one Compose project |
+| `include` | array of string | all services | Only these compose services emit events |
+| `exclude` | array of string | none | Skip these services |
+
+Running container without health-check → `healthy` is treated as `running`. Container in `restarting` for >2 ticks → `service_down`. See [Docker probe](/guide/monitoring/docker) for details.
+
+---
+
+## `[probes.systemd]`
+
+| Key | Type | Default | Description |
+|:----|:-----|:--------|:------------|
+| `enabled` | bool | `false` | systemd is opt-in (you must list units) |
+| `units` | array of string | `[]` | Unit names to monitor (`.service` suffix optional) |
+
+A unit transitioning to `failed` or `inactive` (when it was previously `active`) emits `service_down`.
+
+---
+
+## `[probes.ports]`
+
+TCP reachability probes for arbitrary host:port targets.
+
+| Key | Type | Default | Description |
+|:----|:-----|:--------|:------------|
+| `enabled` | bool | `false` | Opt-in — define `targets` to enable |
+| `timeout_ms` | u64 | `1500` | Connect timeout per target |
+| `targets` | array of table | `[]` | One row per port |
+
+Each `targets[]` row:
+
+```toml
+{ host = "127.0.0.1", port = 5432, name = "postgres" }
+```
+
+| Field | Required | Description |
+|:------|:---------|:------------|
+| `host` | yes | IPv4, IPv6, or DNS name |
+| `port` | yes | TCP port (1–65535) |
+| `name` | no | Pretty name for Telegram alerts (defaults to `host:port`) |
+
+---
+
+## `[probes.resources]`
+
+Disk, memory, and load thresholds. All thresholds are checked once per tick.
+
+| Key | Type | Default | Description |
+|:----|:-----|:--------|:------------|
+| `enabled` | bool | `true` | |
+| `disk_warn_percent` | u8 | `80` | Per-mount warn threshold |
+| `disk_critical_percent` | u8 | `90` | Per-mount critical threshold |
+| `memory_warn_percent` | u8 | `85` | Total memory used % |
+| `load_warn_1m` | f64 | unset | Alert if 1-minute load average > this |
+| `load_warn_5m` | f64 | unset | Alert if 5-minute load average > this |
+| `load_warn_15m` | f64 | unset | Alert if 15-minute load average > this |
+
+If a load threshold is unset, that horizon isn't checked. Setting all three is fine — typically you want a high `1m` (spike alert) and a moderate `15m` (sustained load).
+
+---
+
+## Environment overrides
+
+Any top-level key can be overridden via an environment variable:
+
+| Env var | Equivalent TOML |
+|:--------|:----------------|
+| `STACKPATROL_TOKEN` | `token` |
+| `STACKPATROL_SERVER_NAME` | `server_name` |
+| `STACKPATROL_API_ENDPOINT` | `api_endpoint` |
+
+Useful for Docker / Kubernetes / cloud-init flows where you'd rather not bake the token into a config file.

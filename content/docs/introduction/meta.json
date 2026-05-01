@@ -1,0 +1,13 @@
+{
+  "title": "Introduction",
+  "description": "Overview & getting started",
+  "root": true,
+  "icon": "Home",
+  "pages": [
+    "index",
+    "what-is-stackpatrol",
+    "why-stackpatrol",
+    "how-it-works",
+    "quick-start"
+  ]
+}

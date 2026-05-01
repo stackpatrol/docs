@@ -1,0 +1,65 @@
+---
+title: Recovery alerts
+description: Why you always get a ✅ recovery message, not just the 🔴 alert.
+icon: ShieldCheck
+---
+
+# Recovery alerts
+
+When something stops being broken, you should know — without having to SSH in and check. StackPatrol always sends a recovery alert paired with the original alert.
+
+---
+
+## The pattern
+
+For every `🔴` you receive, you'll get a `✅` later (assuming the problem self-resolves):
+
+```
+🔴 web-1 — nginx is down
+   service_down · just now
+
+✅ web-1 — nginx is back online
+   service_up · 3m later
+```
+
+The recovery message is a separate Telegram message, not an edit of the original — so notification chimes and ringtones still fire, and your chat history shows the full timeline.
+
+---
+
+## When recoveries fire
+
+| Original alert | Recovery trigger |
+|:---------------|:-----------------|
+| `service_down` (Docker/systemd) | Container/unit returns to `running` / `active` |
+| `port_unreachable` | Connection to host:port succeeds again |
+| `disk_warning` | Mount drops back below `disk_warn_percent` |
+| `disk_critical` | Mount drops back below `disk_critical_percent` |
+| `memory_warning` | Memory drops back below `memory_warn_percent` |
+| `load_warning` | All-three load averages drop back below their thresholds |
+| `host_unreachable` | Heartbeat resumes — server flips back to `online` |
+
+A recovery requires the underlying state to *stay* recovered for one tick. A flap (down → up → down within a single tick) doesn't generate a recovery+down pair; the alert engine sees the net state and emits one alert.
+
+---
+
+## Host recovery
+
+If the daemon stops reporting (host crash, network outage, daemon killed), the control plane synthesizes a `host_unreachable` alert after 3 minutes of silence. When the daemon comes back, the very first event flips the server from `offline` → `online` and the control plane emits a synthetic `host_recovered`:
+
+```
+🔴 web-1 — host unreachable
+   host_unreachable · last seen 3m 12s ago
+
+✅ web-1 — host is back
+   host_recovered · last seen just now
+```
+
+The control plane handles both: the inline status flip on each ingested event, and a 60-second sweeper that synthesizes `host_unreachable` for stale servers.
+
+---
+
+## Why recoveries matter
+
+The opposite design — alert on incidents, ignore recoveries — is how most paging tools work. It's also why people end up with stale alarms that nobody knows are still firing and why "did this resolve itself?" becomes a manual SSH check.
+
+We pay one extra Telegram message per incident to make the resolution machine-verifiable. That's a worthwhile trade for everyone except people running thousands of nodes (and they aren't our v1 audience).
